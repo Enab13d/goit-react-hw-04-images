@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchImages } from 'constants/api';
 import { ImageGallery } from 'components/ImageGallery/ImageGallery';
 import { Button } from 'components/Button/Button';
@@ -7,80 +7,71 @@ import { Modal } from 'components/Modal/Modal';
 import { Wrapper } from './App.styled';
 import { Loader } from 'components/Loader/Loader';
 
-export class App extends Component {
-  state = {
-    searchQuery: '',
-    items: [],
-    page: 1,
-    totalPages: null,
-    perPage: 12,
-    selectedImageUrl: null,
-    isModalOpen: false,
-    isLoading: false,
+export const App = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [items, setItems] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(null);
+  const [perPage] = useState(12);
+  const [selectedImageUrl, setSelectedImageUrl] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const startLoader = () => {
+    setIsLoading(true);
   };
-  startLoader = () => {
-    this.setState({ isLoading: true });
+  const stopLoader = () => {
+    setIsLoading(false);
   };
-  stopLoader = () => {
-    this.setState({ isLoading: false });
-  };
-  onSubmit = e => {
+  const onSubmit = e => {
     e.preventDefault();
     const {
-      search: { value: searchQuery },
+      search: { value },
     } = e.target.elements;
-    if (searchQuery.trim() === '') {
+
+    if (value.trim() === '') {
       return;
     }
-    if (searchQuery.trim() !== this.state.searchQuery) {
-      this.setState({
-        searchQuery,
-        items: [],
-        page: 1,
-      });
+    if (value.trim() !== searchQuery) {
+      setSearchQuery(value);
+      setItems([]);
+      setPage(1);
     }
+    setSearchQuery(value);
   };
-  onLoadMore = () => {
-    this.setState(state => {
-      return { page: state.page + 1 };
-    });
-  };
-  onImageClick = e => {
+  const onLoadMore = () => setPage(page => page + 1);
+
+  const onImageClick = e => {
     const { id } = e.currentTarget;
-    const { items } = this.state;
     const largeImageURL = [...items]
       .filter(item => item.id === Number(id))
       .map(obj => obj.largeImageURL)
       .join('');
-    const selectedImageUrl = largeImageURL;
-    this.setState({ selectedImageUrl });
-    this.showModal();
+    setSelectedImageUrl(largeImageURL);
+    showModal();
   };
-  onModalClose = e => {
+  const onModalClose = e => {
     if (e.key === 'Escape') {
-      this.hideModal();
+      hideModal();
     }
   };
 
-  showModal = () => {
-    this.setState({ isModalOpen: true });
-  };
+  const showModal = () => setIsModalOpen(true);
 
-  hideModal = () => {
-    this.setState({ isModalOpen: false });
-  };
+  const hideModal = () => setIsModalOpen(false);
 
-  onBackdropClick = e => {
-    const { hideModal } = this;
+  const onBackdropClick = e => {
     if (e.target.nodeName !== 'IMG') {
       hideModal();
     }
   };
 
-  async componentDidUpdate(prevProps, prevState) {
-    const { startLoader, stopLoader } = this;
-    const { page, perPage, searchQuery } = this.state;
-    if (prevState.searchQuery !== searchQuery || prevState.page !== page) {
+  useEffect(() => {
+    if (searchQuery === '') {
+      return;
+    }
+
+    async function fetchData() {
       try {
         startLoader();
         const response = await fetchImages(searchQuery, page, perPage);
@@ -88,53 +79,32 @@ export class App extends Component {
           data: { hits: items, totalHits },
         } = response;
         const totalPages = Math.ceil(totalHits / perPage);
-
-        this.setState(state => {
-          return { items: [...state.items, ...items], totalPages };
-        });
+        setItems(prevItems => [...prevItems, ...items]);
+        setTotalPages(totalPages);
       } catch (error) {
         console.log(error);
       } finally {
         stopLoader();
       }
     }
-  }
-  componentWillUnmount() {
-    window.removeEventListener('keydown', this.onModalClose);
-  }
-  render() {
-    const {
-      items,
-      selectedImageUrl,
-      page,
-      totalPages,
-      isModalOpen,
-      isLoading,
-    } = this.state;
+    fetchData();
+  }, [searchQuery, page, perPage]);
 
-    const {
-      onLoadMore,
-      onSubmit,
-      onImageClick,
-      onBackdropClick,
-      onModalClose,
-    } = this;
-    return (
-      <Wrapper>
-        <Searchbar onSubmit={onSubmit} />
-        <ImageGallery images={items} onClick={onImageClick}></ImageGallery>
-        {items.length > 1 && page > 0 && page < totalPages && !isLoading && (
-          <Button onClick={onLoadMore} />
-        )}
-        {isLoading && <Loader />}
-        {isModalOpen && (
-          <Modal
-            url={selectedImageUrl}
-            onClick={onBackdropClick}
-            onModalClose={onModalClose}
-          />
-        )}
-      </Wrapper>
-    );
-  }
-}
+  return (
+    <Wrapper>
+      <Searchbar onSubmit={onSubmit} />
+      <ImageGallery images={items} onClick={onImageClick}></ImageGallery>
+      {items.length > 1 && page < totalPages && !isLoading && (
+        <Button onClick={onLoadMore} />
+      )}
+      {isLoading && <Loader />}
+      {isModalOpen && (
+        <Modal
+          url={selectedImageUrl}
+          onClick={onBackdropClick}
+          onModalClose={onModalClose}
+        />
+      )}
+    </Wrapper>
+  );
+};
